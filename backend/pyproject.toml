@@ -1,0 +1,52 @@
+[project]
+name = "mudel-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "S", "C4", "UP"]
+# B008: FastAPI's Depends()-in-default-argument is the framework's idiomatic DI pattern, not a bug.
+# S105: hardcoded-password check false-positives on the documented insecure placeholder default,
+#       which exists precisely so the startup check in main.py can detect it and warn.
+# E712: `Column == True` is the idiomatic SQLAlchemy filter pattern (produces a SQL boolean
+#       comparison); ruff's suggested `if Column:` truthiness rewrite does not work on ORM
+#       columns and would silently break every filtered query.
+ignore = ["B008", "S105", "E712"]
+
+[tool.mypy]
+# ---------------------------------------------------------------------------
+# Strict but realistic mypy configuration for a FastAPI + SQLAlchemy project.
+# ---------------------------------------------------------------------------
+# strict = true enables ALL of the following flags:
+#   disallow_untyped_defs, disallow_any_generics, disallow_incomplete_defs,
+#   check_untyped_defs, disallow_untyped_decorators, no_implicit_reexport,
+#   warn_return_any, warn_unused_ignores, warn_redundant_casts,
+#   no_implicit_optional, strict_equality, extra_checks
+#
+# Instead of a blanket ignore_missing_imports = true (which hides real
+# import errors in YOUR code), we only ignore missing stubs for specific
+# third-party libraries that don't ship type annotations.
+# ---------------------------------------------------------------------------
+strict = true
+
+# ---------------------------------------------------------------------------
+# Per-module overrides for third-party libraries without type stubs.
+# Only add a module here if mypy raises "Library stub not installed" or
+# "Ignoring type annotation" errors that are NOT fixable by installing
+# a types-* package.
+# ---------------------------------------------------------------------------
+[[tool.mypy.overrides]]
+module = [
+    "slowapi.*",
+    "aiosqlite.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=app --cov-report=term-missing --cov-fail-under=70"

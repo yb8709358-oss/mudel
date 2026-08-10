@@ -1,0 +1,48 @@
+# Node / Next.js
+node_modules/
+.next/
+out/
+dist/
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Python (backend has its own too)
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+backend/test.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Production environment
+backend/.env.production
+
+# E2E session credentials
+backend/e2e_cookies.txt
+backend/e2e_session.xml
+
+# Test/build artifacts
+backend/pytest_full.txt
+backend/alembic_up.txt
+backend/check_final_schema.py
+frontend/build.txt
+frontend/eslint.txt
+frontend/tsc.txt
+frontend/vitest.txt
+*.tsbuildinfo

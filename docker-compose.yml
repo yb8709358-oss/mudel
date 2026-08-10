@@ -1,0 +1,130 @@
+# =============================================================================
+# Mudel — Production Docker Compose
+# =============================================================================
+# Usage:
+#   cp .env.example .env        # Fill in secrets
+#   docker compose up -d --build
+#   docker compose ps            # Verify all services healthy
+#
+# Required .env variables:
+#   POSTGRES_PASSWORD    — PostgreSQL password (min 12 chars)
+#   ADMIN_API_SECRET     — Admin API shared secret
+#
+# Optional .env variables (image uploads disabled when omitted):
+#   SUPABASE_SERVICE_ROLE_KEY — Supabase service-role key for request image
+#                               uploads (Settings → API)
+#   SUPABASE_STORAGE_BUCKET   — Storage bucket name (default: request-images)
+#
+# SECURITY: run this stack behind a TLS-terminating reverse proxy (nginx /
+# Caddy / Cloudflare). The backend adds an HSTS header only for https
+# requests, and the frontend marks admin cookies Secure only in production —
+# both rely on TLS being terminated upstream. Never expose port 8000
+# directly to the public internet.
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # PostgreSQL 16 (Alpine)
+  # Primary database for all application data.
+  #
+  # - Uses Alpine-based image (~50MB vs ~350MB for full Debian)
+  # - pg_isready healthcheck ensures the DB is accepting connections
+  #   before the backend starts (prevents connection-refused errors)
+  # - Data persisted in a named volume (survives container recreation)
+  # - Password injected via .env to avoid hardcoding secrets
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mudel
+      POSTGRES_USER: mudel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mudel -d mudel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - mudel-network
+
+  # ===========================================================================
+  # Redis 7 (Alpine)
+  # In-memory store for caching, rate limiting, and session storage.
+  #
+  # - appendonly=yes enables AOF persistence (data survives restarts)
+  # - RDB snapshots are also kept (default every 60s if 1000+ keys changed)
+  # - Data persisted in a named volume
+  # - No password set for internal network (add requirepass if exposed)
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - mudel-network
+
+  # ===========================================================================
+  # Backend (FastAPI + Uvicorn)
+  # The Mudel API server, built from backend/Dockerfile.
+  #
+  # - Multi-stage build (see backend/Dockerfile)
+  # - Runs as non-root user (app:app)
+  # - Waits for PostgreSQL to be healthy before starting
+  # - All secrets injected via .env (never hardcoded)
+  # - DEBUG=False disables SQL logging and Swagger in production
+  # - 2 uvicorn workers for concurrent request handling
+  # ===========================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://mudel:${POSTGRES_PASSWORD}@postgres:5432/mudel
+      REDIS_URL: redis://redis:6379/0
+      ADMIN_API_SECRET: ${ADMIN_API_SECRET}
+      CONTACT_EMAIL_TO: ${CONTACT_EMAIL_TO:-hello@mudel.ma}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["https://mudel.ma"]}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SUPABASE_STORAGE_BUCKET: ${SUPABASE_STORAGE_BUCKET:-request-images}
+      ENVIRONMENT: production
+      DEBUG: "False"
+    networks:
+      - mudel-network
+
+# =============================================================================
+# Networks
+# All services communicate over a single bridge network.
+# Service names (postgres, redis) resolve to container IPs automatically.
+# =============================================================================
+networks:
+  mudel-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# Named volumes persist data across container recreation and restarts.
+# Managed by Docker — stored in /var/lib/docker/volumes/ on the host.
+# =============================================================================
+volumes:
+  postgres_data:
+  redis_data:
