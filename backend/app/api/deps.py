@@ -22,6 +22,7 @@ from app.services.service_request import ServiceRequestService
 from app.services.settings import SettingsService
 from app.services.storage import StorageService
 from app.services.technician import TechnicianService
+from app.services.whatsapp import WhatsAppService
 
 
 async def get_service_repo(db: AsyncSession = Depends(get_db)) -> ServiceRepository:
@@ -50,6 +51,10 @@ async def get_request_repo(db: AsyncSession = Depends(get_db)) -> RequestReposit
 
 async def get_storage_service() -> StorageService:
     return StorageService()
+
+
+async def get_whatsapp_service() -> WhatsAppService:
+    return WhatsAppService()
 
 
 async def get_service_request_repo(db: AsyncSession = Depends(get_db)) -> ServiceRequestRepository:
@@ -85,8 +90,9 @@ async def get_service_request_service(
 async def get_request_service(
     repo: RequestRepository = Depends(get_request_repo),
     storage: StorageService = Depends(get_storage_service),
+    whatsapp: WhatsAppService = Depends(get_whatsapp_service),
 ) -> RequestService:
-    return RequestService(repo, storage)
+    return RequestService(repo, storage, whatsapp)
 
 
 async def get_dashboard_service(

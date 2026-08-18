@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { Inter, Noto_Kufi_Arabic } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getTranslations } from 'next-intl/server';
+import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
+import { SITE_URL } from '@/lib/env';
 import { Providers } from '@/components/providers';
 import { ReactNode } from 'react';
 import '../globals.css';
@@ -20,9 +21,8 @@ const notoKufi = Noto_Kufi_Arabic({
   display: 'swap',
 });
 
-// Canonical site origin. Same env var / fallback used by app/robots.ts and
+// Canonical site origin. Same env var source used by app/robots.ts and
 // app/sitemap.ts so canonical, Open Graph and sitemap URLs stay consistent.
-const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://mudel.ma';
 
 const LOGO_PATH = '/images/icons/mudel-logo.png';
 
@@ -35,6 +35,7 @@ const OG_LOCALES: Record<string, string> = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale } = await params;
+  setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: 'metadata' });
 
   const ogLocale = OG_LOCALES[locale] ?? 'en_US';
@@ -99,6 +100,7 @@ export async function generateStaticParams() {
 
 export default async function LocaleLayout({ children, params }: Props) {
   const { locale } = await params;
+  setRequestLocale(locale);
 
   if (!routing.locales.includes(locale as 'en' | 'fr' | 'ar')) {
     notFound();

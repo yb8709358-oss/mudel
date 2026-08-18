@@ -41,7 +41,7 @@ export default async function HomePage({ params }: Props) {
       <section className="relative overflow-hidden min-h-[650px] flex items-center">
 
   <Image
-    src="/images/hero/ChatGPT Image 26 juil. 2026, 19_39_11.png"
+    src="/images/hero/hero-marrakech.png"
     alt="Marrakech"
     fill
     priority

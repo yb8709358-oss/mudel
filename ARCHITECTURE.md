@@ -1557,6 +1557,14 @@ INTERNAL_ERROR
 
 ## 27. Deployment Strategy
 
+> **Current deployment (supersedes the Vercel/Railway plan below):** the
+> production stack runs on **Oracle Cloud** as containers with **Supabase
+> PostgreSQL as the only production database**. See `docker-compose.prod.yml`
+> (Redis + backend + frontend; no Postgres container) and the README
+> "Production on Oracle Cloud" section. Frontend is built `output:
+> 'standalone'` (`frontend/Dockerfile`). Sections 27.1–27.2 describe the
+> earlier hosted-PaaS plan and are kept for reference.
+
 ### 27.1 Frontend Deployment (Vercel)
 
 ```

@@ -1,35 +1,43 @@
 # =============================================================================
-# Mudel — Production Docker Compose
+# Mudel — LOCAL development Docker Compose
 # =============================================================================
+# Full local stack: PostgreSQL + Redis + FastAPI backend + Next.js frontend.
+# Production runs docker-compose.prod.yml with Supabase (see .env.prod).
+#
 # Usage:
-#   cp .env.example .env        # Fill in secrets
+#   cp .env.example .env        # Fill in local secrets (see .env)
 #   docker compose up -d --build
 #   docker compose ps            # Verify all services healthy
 #
 # Required .env variables:
-#   POSTGRES_PASSWORD    — PostgreSQL password (min 12 chars)
-#   ADMIN_API_SECRET     — Admin API shared secret
+#   DATABASE_URL         — Supabase connection string (both local and
+#                          production use the SAME Supabase database).
+#   POSTGRES_PASSWORD    — local PostgreSQL password (youssef@1212); the local
+#                          postgres container stays up for legacy/tooling use
+#                          but the backend never connects to it while
+#                          DATABASE_URL is set.
+#   ADMIN_API_SECRET     — Admin API shared secret (must match frontend)
 #
 # Optional .env variables (image uploads disabled when omitted):
 #   SUPABASE_SERVICE_ROLE_KEY — Supabase service-role key for request image
 #                               uploads (Settings → API)
 #   SUPABASE_STORAGE_BUCKET   — Storage bucket name (default: request-images)
 #
-# SECURITY: run this stack behind a TLS-terminating reverse proxy (nginx /
-# Caddy / Cloudflare). The backend adds an HSTS header only for https
-# requests, and the frontend marks admin cookies Secure only in production —
-# both rely on TLS being terminated upstream. Never expose port 8000
-# directly to the public internet.
+# SECURITY: this is a LOCAL stack. For anything exposed to the network, run it
+# behind a TLS-terminating reverse proxy (nginx / Caddy / Cloudflare). The
+# backend adds an HSTS header only for https requests, and the frontend marks
+# admin cookies Secure only in production.
 # =============================================================================
 
 services:
   # ===========================================================================
   # PostgreSQL 16 (Alpine)
-  # Primary database for all application data.
+  # Kept running for legacy/tooling use (ad-hoc psql, backups). The application
+  # backend no longer connects to it: both local and production use the Supabase
+  # database via DATABASE_URL. Remove this service once nothing needs it.
   #
   # - Uses Alpine-based image (~50MB vs ~350MB for full Debian)
   # - pg_isready healthcheck ensures the DB is accepting connections
-  #   before the backend starts (prevents connection-refused errors)
   # - Data persisted in a named volume (survives container recreation)
   # - Password injected via .env to avoid hardcoding secrets
   # ===========================================================================
@@ -41,7 +49,10 @@ services:
       POSTGRES_USER: mudel
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # Use the pre-existing project-data volume (created externally). Declared
+      # as external so Compose binds this exact named volume instead of creating
+      # a new project-prefixed one (e.g. job_job_pgdata).
+      - job_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mudel -d mudel"]
       interval: 10s
@@ -81,7 +92,7 @@ services:
   #
   # - Multi-stage build (see backend/Dockerfile)
   # - Runs as non-root user (app:app)
-  # - Waits for PostgreSQL to be healthy before starting
+  # - Connects to the Supabase database via DATABASE_URL (same DB as production)
   # - All secrets injected via .env (never hardcoded)
   # - DEBUG=False disables SQL logging and Swagger in production
   # - 2 uvicorn workers for concurrent request handling
@@ -94,27 +105,80 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://mudel:${POSTGRES_PASSWORD}@postgres:5432/mudel
-      REDIS_URL: redis://redis:6379/0
-      ADMIN_API_SECRET: ${ADMIN_API_SECRET}
+      # Supabase connection string. Both local and production use the same
+      # Supabase database. Read from the local .env — if it is unset/empty the
+      # backend builds a URL from the DB_* components (see backend/app/core/config.py).
+      DATABASE_URL: ${DATABASE_URL}
+      # NOTE: DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME are intentionally NOT
+      # passed here. They would only take effect as a fallback when DATABASE_URL
+      # is empty, but omitting them keeps the local stack explicitly on Supabase.
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ADMIN_API_SECRET: ${ADMIN_API_SECRET:-change-me-in-production}
       CONTACT_EMAIL_TO: ${CONTACT_EMAIL_TO:-hello@mudel.ma}
-      CORS_ORIGINS: ${CORS_ORIGINS:-["https://mudel.ma"]}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000","http://localhost:3001","http://127.0.0.1:3000","http://127.0.0.1:3001"]}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       SUPABASE_STORAGE_BUCKET: ${SUPABASE_STORAGE_BUCKET:-request-images}
-      ENVIRONMENT: production
-      DEBUG: "False"
+      # WhatsApp Cloud API integration (disabled by default for local dev).
+      WHATSAPP_ENABLED: ${WHATSAPP_ENABLED:-false}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_GRAPH_API_VERSION: ${WHATSAPP_GRAPH_API_VERSION:-v21.0}
+      WHATSAPP_ADMIN_PHONE: ${WHATSAPP_ADMIN_PHONE:-}
+      # Local stack runs in development mode (DEBUG=true enables SQL echo).
+      # Production uses docker-compose.prod.yml with ENVIRONMENT=production.
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      DEBUG: ${DEBUG:-true}
+    networks:
+      - mudel-network
+
+  # ===========================================================================
+  # Frontend (Next.js standalone server)
+  # Served to the browser on http://localhost:3001.
+  #
+  # The BROWSER calls the backend at http://localhost:8000 (NEXT_PUBLIC_API_URL,
+  # baked into the client bundle at build time — rebuild the image after
+  # changing it). The Next.js SERVER (SSR / route handlers) cannot use
+  # localhost:8000 from inside the container — it reaches the backend via the
+  # compose service name INTERNAL_API_URL (http://backend:8000), injected as a
+  # runtime environment variable. When INTERNAL_API_URL is unset the server
+  # falls back to the public API URL (npm run dev on the host).
+  #
+  # Server-only credentials (ADMIN_PASSWORD / ADMIN_API_SECRET) are injected at
+  # runtime, never baked into the bundle.
+  # ===========================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Public URLs, baked into the browser bundle at build time.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3001}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3001}
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-Mudel}
+    restart: unless-stopped
+    ports:
+      - "3101:3001"
+    environment:
+      # Server-only admin credentials — must match the backend.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me}
+      ADMIN_API_SECRET: ${ADMIN_API_SECRET:-change-me-in-production}
+      # Server-only backend origin for SSR / route handlers (Docker network).
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:8000}
+    depends_on:
+      - backend
     networks:
       - mudel-network
 
 # =============================================================================
 # Networks
 # All services communicate over a single bridge network.
-# Service names (postgres, redis) resolve to container IPs automatically.
+# Service names (postgres, redis, backend) resolve to container IPs
+# automatically.
 # =============================================================================
 networks:
   mudel-network:
@@ -126,5 +190,8 @@ networks:
 # Managed by Docker — stored in /var/lib/docker/volumes/ on the host.
 # =============================================================================
 volumes:
-  postgres_data:
+  # Pre-existing PostgreSQL data volume with the real Mudel project data
+  # (alembic 0003). External: Compose must NOT create or prefix this volume.
+  job_pgdata:
+    external: true
   redis_data:

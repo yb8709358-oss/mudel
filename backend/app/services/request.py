@@ -4,10 +4,12 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.core.exceptions import AppError, NotFoundError, ValidationError
+from app.core.logging import logger
 from app.models.district import District
 from app.repositories.request import RequestRepository
 from app.schemas.request import RequestContactSummaryOut, RequestCreate
 from app.services.storage import StorageService
+from app.services.whatsapp import WhatsAppError, WhatsAppService
 
 MAX_IMAGES = 5
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -30,9 +32,10 @@ def _ensure_aware(value: datetime | None) -> datetime | None:
 
 
 class RequestService:
-    def __init__(self, repo: RequestRepository, storage: StorageService):
+    def __init__(self, repo: RequestRepository, storage: StorageService, whatsapp: WhatsAppService | None = None):
         self.repo = repo
         self.storage = storage
+        self.whatsapp = whatsapp or WhatsAppService()
 
     # ------------------------------------------------------------------
     # Token helpers
@@ -151,6 +154,25 @@ class RequestService:
             status='pending',
         )
         await self.repo.consume_token(contact)
+
+        # --- WhatsApp notification (fire-and-forget) --------------------
+        try:
+            await self.whatsapp.notify_new_service_request(
+                request_number=request.request_number or '',
+                customer_name=contact.name,
+                customer_phone=contact.phone,
+                service_name=self._service_name(contact),
+                address=data.address.strip() if data.address else None,
+                preferred_date=str(data.preferred_date) if data.preferred_date else None,
+                preferred_time=data.preferred_time.strip() if data.preferred_time else None,
+            )
+        except Exception as exc:
+            logger.warning(
+                'whatsapp_notification_unexpected_failure',
+                request_number=request.request_number,
+                error=str(exc),
+            )
+
         return request
 
     async def upload_images(self, token: str, files: list[UploadFile]) -> list[str]:

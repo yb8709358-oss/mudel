@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminSessionCookieName, isValidAdminSession } from '@/lib/admin-auth';
+import { INTERNAL_API_URL } from '@/lib/env';
 import { isValidOrigin } from '@/lib/origin';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -135,7 +134,7 @@ export async function adminFetch<T>(path: string, init?: RequestInit): Promise<T
 
   const requestBody = typeof init?.body === 'string' ? init.body : undefined;
 
-  const res = await fetch(`${API_BASE_URL}/api/v1${path}`, {
+  const res = await fetch(`${INTERNAL_API_URL}/api/v1${path}`, {
     ...init,
     headers,
     cache: 'no-store',

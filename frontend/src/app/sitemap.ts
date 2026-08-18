@@ -1,8 +1,9 @@
 import { MetadataRoute } from 'next';
 import { getServices, getTechnicians } from '@/lib/api';
+import { SITE_URL } from '@/lib/env';
 
 const locales = ['en', 'fr', 'ar'];
-const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://mudel.ma';
+const baseUrl = SITE_URL;
 
 const staticPages = ['', '/services', '/contact'];
 

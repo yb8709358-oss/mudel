@@ -153,7 +153,8 @@
     "loading": "Chargement...",
     "error": "Une erreur est survenue",
     "retry": "Réessayer",
-    "language": "Langue"
+    "language": "Langue",
+    "floating_cta_label": "Demander un service"
   },
   "metadata": {
     "title": "Services à domicile à Marrakech | Techniciens de confiance",

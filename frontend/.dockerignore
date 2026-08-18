@@ -1,0 +1,31 @@
+# =============================================================================
+# Frontend .dockerignore — keeps secrets and dev/build artifacts out of the
+# Docker build context.
+# =============================================================================
+
+# Environment files (may contain real ADMIN_PASSWORD / ADMIN_API_SECRET).
+# Never copy .env.local into an image; credentials are injected at runtime.
+.env
+.env.*
+!.env.example
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Git
+.git/
+.gitignore
+
+# Tests (not needed in the runtime image)
+coverage/
+vitest.config.ts
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

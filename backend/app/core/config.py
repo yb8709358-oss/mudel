@@ -1,5 +1,5 @@
 import json
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings
@@ -11,9 +11,20 @@ class Settings(BaseSettings):
     environment: str = 'development'
     debug: bool = True
 
-    database_url: str = 'postgresql://mudel:mudel_dev@localhost:5432/mudel'
+    database_url: str = ''
     database_pool_size: int = 10
     database_max_overflow: int = 20
+
+    # Optional separate database credentials. These are used ONLY as a fallback
+    # when DATABASE_URL is empty: the connection URL is built from them with the
+    # password percent-encoded (quote_plus) so special characters like '@' in
+    # the password do not break URL parsing. DATABASE_URL always takes precedence
+    # whenever it is set.
+    db_host: str = ''
+    db_port: int = 5432
+    db_user: str = ''
+    db_password: str = ''
+    db_name: str = 'mudel'
 
     cors_origins: str = '["http://localhost:3000","http://127.0.0.1:3000","http://localhost:3001","http://127.0.0.1:3001"]'
 
@@ -38,6 +49,17 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ''
     supabase_storage_bucket: str = 'request-images'
 
+    # ------------------------------------------------------------------
+    # WhatsApp Cloud API integration
+    # ------------------------------------------------------------------
+    whatsapp_enabled: bool = False
+    whatsapp_access_token: str = ''
+    whatsapp_phone_number_id: str = ''
+    whatsapp_verify_token: str = ''
+    whatsapp_graph_api_version: str = 'v21.0'
+    # Phone number that receives new-service-request notifications (E.164 format).
+    whatsapp_admin_phone: str = ''
+
     @property
     def cors_origin_list(self) -> list[str]:
         return json.loads(self.cors_origins)
@@ -48,6 +70,35 @@ class Settings(BaseSettings):
         if '.' not in user:
             return ''
         return f'https://{user.split(".")[-1]}.supabase.co'
+
+    # ------------------------------------------------------------------
+    # DB URL construction from components
+    # ------------------------------------------------------------------
+    @model_validator(mode='after')
+    def _build_database_url(self) -> 'Settings':
+        # DATABASE_URL takes precedence whenever it is set (local .env and
+        # production both point at the same Supabase database). The DB_*
+        # components are only used to build a URL when DATABASE_URL is empty.
+        if not self.database_url.strip() and self.db_host and self.db_user:
+            self.database_url = (
+                f'postgresql://{quote_plus(self.db_user)}:{quote_plus(self.db_password)}'
+                f'@{self.db_host}:{self.db_port}/{self.db_name}'
+            )
+        return self
+
+    # ------------------------------------------------------------------
+    # Required environment validation
+    # ------------------------------------------------------------------
+    @model_validator(mode='after')
+    def _validate_database_url(self) -> 'Settings':
+        if not self.database_url.strip():
+            raise ValueError(
+                'DATABASE_URL is not set. Provide DATABASE_URL (e.g. the Supabase '
+                'connection string) or the DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/'
+                'DB_NAME components (docker-compose.yml) in backend/.env or the '
+                'environment.'
+            )
+        return self
 
     # ------------------------------------------------------------------
     # Production validation
@@ -98,6 +149,23 @@ class Settings(BaseSettings):
         if self.contact_email_to == 'hello@mudel.ma' and not errors:
             # Only warn, don't block — this is acceptable in some setups
             pass
+
+        # 7. WhatsApp integration must have all required credentials when enabled
+        if self.whatsapp_enabled:
+            missing = []
+            if not self.whatsapp_access_token.strip():
+                missing.append('WHATSAPP_ACCESS_TOKEN')
+            if not self.whatsapp_phone_number_id.strip():
+                missing.append('WHATSAPP_PHONE_NUMBER_ID')
+            if not self.whatsapp_verify_token.strip():
+                missing.append('WHATSAPP_VERIFY_TOKEN')
+            if not self.whatsapp_admin_phone.strip():
+                missing.append('WHATSAPP_ADMIN_PHONE')
+            if missing:
+                errors.append(
+                    'WhatsApp integration is enabled but required credentials '
+                    f'are missing: {", ".join(missing)}.'
+                )
 
         if errors:
             raise ValueError(

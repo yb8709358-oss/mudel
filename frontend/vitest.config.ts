@@ -8,6 +8,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.{ts,tsx}'],
+    env: {
+      NEXT_PUBLIC_API_URL: 'http://localhost:8000',
+      NEXT_PUBLIC_APP_URL: 'http://localhost:3001',
+      NEXT_PUBLIC_SITE_URL: 'http://localhost:3001',
+    },
   },
   resolve: {
     alias: {

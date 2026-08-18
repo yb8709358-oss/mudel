@@ -2,8 +2,28 @@ import os
 
 # Must be set before `app.main` is imported so pydantic-settings picks it up
 # (env vars take precedence over the backend `.env` file). Keeps tests
-# independent of the real ADMIN_API_SECRET.
+# independent of the real ADMIN_API_SECRET and the real database. The fake
+# postgres URL is never connected to — get_db is overridden below; it only
+# needs to produce a parseable asyncpg-style engine at import time.
 os.environ.setdefault('ADMIN_API_SECRET', 'test-admin-secret')
+os.environ.setdefault('DATABASE_URL', 'postgresql://test:test@localhost:5432/test')
+# Pin the DB_* components to empty so a local backend/.env (e.g. DB_HOST=postgres)
+# can never make tests build a URL against a real database. DATABASE_URL above
+# is then used as-is, regardless of the local environment file.
+os.environ.setdefault('DB_HOST', '')
+os.environ.setdefault('DB_USER', '')
+os.environ.setdefault('DB_PASSWORD', '')
+os.environ.setdefault('DB_NAME', 'mudel')
+# Force development mode so production validators don't reject the test DB URL.
+os.environ.setdefault('ENVIRONMENT', 'development')
+os.environ.setdefault('REDIS_URL', '')
+# WhatsApp must be disabled during tests so no real API calls are made.
+# Tests that need WhatsApp enabled override the dependency directly.
+os.environ.setdefault('WHATSAPP_ENABLED', 'false')
+os.environ.setdefault('WHATSAPP_ACCESS_TOKEN', '')
+os.environ.setdefault('WHATSAPP_PHONE_NUMBER_ID', '')
+os.environ.setdefault('WHATSAPP_VERIFY_TOKEN', '')
+os.environ.setdefault('WHATSAPP_ADMIN_PHONE', '')
 
 import pytest
 import pytest_asyncio

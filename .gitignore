@@ -6,9 +6,17 @@ dist/
 
 # Env / secrets
 .env
+.env.*
+!.env.example
+!.env.*.example
 .env.local
-.env.*.local
+.env.production
+.env.*.production
 backend/.env
+backend/.env.production
+
+# TLS certificates (production reverse proxy)
+certs/
 
 # Python (backend has its own too)
 __pycache__/
@@ -31,7 +39,7 @@ npm-debug.log*
 Thumbs.db
 
 # Production environment
-backend/.env.production
+# (covered by .env / .env.* patterns above)
 
 # E2E session credentials
 backend/e2e_cookies.txt

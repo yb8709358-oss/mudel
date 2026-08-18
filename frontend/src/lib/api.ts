@@ -11,8 +11,7 @@ import {
   Service,
   Technician,
 } from '@/types';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiBase } from '@/lib/env';
 
 /**
  * Cache tag attached to every public technician fetch. The admin create/update/
@@ -60,7 +59,7 @@ export async function parseApiError(res: Response): Promise<ApiError> {
 }
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}/api/v1${path}`, {
+  const res = await fetch(`${getApiBase()}/api/v1${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -124,7 +123,7 @@ export async function uploadRequestImages(token: string, files: File[]) {
     formData.append('files', file);
   }
 
-  const res = await fetch(`${API_BASE_URL}/api/v1/requests/${token}/images`, {
+  const res = await fetch(`${getApiBase()}/api/v1/requests/${token}/images`, {
     method: 'POST',
     body: formData,
   });

@@ -277,8 +277,9 @@ jobs:
       # Step 3: Smoke test — verify the app imports successfully
       # ------------------------------------------------------------------
       # Runs a temporary container that executes a Python import check.
-      # ENVIRONMENT=testing prevents the production validator from blocking
-      # (no real DATABASE_URL or ADMIN_API_SECRET needed for an import test).
+      # ENVIRONMENT=testing skips the production validator and DATABASE_URL is a
+      # throwaway URL (the container never connects — this is an import check
+      # only; the config now fails fast when DATABASE_URL is missing entirely).
       #
       # This catches:
       #   - Missing dependencies in the Docker image
@@ -289,5 +290,6 @@ jobs:
         run: >-
           docker run --rm
           -e ENVIRONMENT=testing
+          -e DATABASE_URL=postgresql://test:test@localhost:5432/test
           mudel-backend
           python -c "from app.main import app; print(f'App loaded: {app.title} v{app.version}')"

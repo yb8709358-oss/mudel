@@ -1,0 +1,45 @@
+# =============================================================================
+# Root .dockerignore — protects secret files if the repository root is ever
+# used as a Docker build context. Each service also has its own tighter
+# .dockerignore inside its directory.
+# =============================================================================
+
+# Secrets / environment files
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# Node / Next.js
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Testing / lint / type checking
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+backend/test.db
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local Docker overrides
+docker-compose.override.yml

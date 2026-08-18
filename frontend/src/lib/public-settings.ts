@@ -1,6 +1,5 @@
 import { resolveSiteSettings, type SiteSettings } from '@/lib/site-settings';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { getApiBase } from '@/lib/env';
 
 /**
  * Cache tag attached to the public settings fetch. The admin settings route
@@ -19,7 +18,7 @@ export const SETTINGS_CACHE_TAG = 'site-settings';
  */
 export async function getPublicSettings(): Promise<Record<string, string>> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/settings`, {
+    const res = await fetch(`${getApiBase()}/api/v1/settings`, {
       next: { revalidate: 3600, tags: [SETTINGS_CACHE_TAG] },
     });
     if (!res.ok) return {};

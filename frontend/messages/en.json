@@ -153,7 +153,8 @@
     "loading": "Loading...",
     "error": "Something went wrong",
     "retry": "Try again",
-    "language": "Language"
+    "language": "Language",
+    "floating_cta_label": "Request a service"
   },
   "metadata": {
     "title": "Home Services Marrakech | Trusted Technicians",

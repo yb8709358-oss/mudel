@@ -16,6 +16,7 @@ from app.api.v1 import (
     services,
     settings,
     technicians,
+    whatsapp,
 )
 
 api_router = APIRouter()
@@ -40,3 +41,6 @@ api_router.include_router(admin_contact.router, prefix='/admin', tags=['admin-co
 api_router.include_router(admin_settings.router, prefix='/admin', tags=['admin-settings'])
 api_router.include_router(admin_dashboard.router, prefix='/admin', tags=['admin-dashboard'])
 api_router.include_router(admin_service_requests.router, prefix='/admin', tags=['admin-service-requests'])
+
+# WhatsApp webhook routes (public — Meta must reach them without admin auth)
+api_router.include_router(whatsapp.router, tags=['whatsapp'])
